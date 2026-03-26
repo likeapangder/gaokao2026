@@ -84,10 +84,20 @@ export function GaokaoSolutionCard() {
   ];
 
   const toggleInterest = (tag) => {
-    setInterests(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-    );
+    // 确保 interests 是数组
+    const currentInterests = Array.isArray(interests) ? interests : [];
+
+    setInterests(prev => {
+      // 这里的 prev 也可能是 undefined 或非数组，做一下防御
+      const safePrev = Array.isArray(prev) ? prev : [];
+      return safePrev.includes(tag)
+        ? safePrev.filter(t => t !== tag)
+        : [...safePrev, tag];
+    });
   };
+
+  // 确保 safeInterests 始终是数组，用于渲染
+  const safeInterests = Array.isArray(interests) ? interests : [];
 
   return (
     <div className="gaokao-solution-card">
@@ -187,9 +197,9 @@ export function GaokaoSolutionCard() {
               <button
                 key={tag}
                 onClick={() => toggleInterest(tag)}
-                className={`interest-tag ${interests.includes(tag) ? 'active' : ''}`}
+                className={`interest-tag ${safeInterests.includes(tag) ? 'active' : ''}`}
               >
-                {interests.includes(tag) && <CheckCircle2 size={14} />}
+                {safeInterests.includes(tag) && <CheckCircle2 size={14} />}
                 {tag}
               </button>
             ))}

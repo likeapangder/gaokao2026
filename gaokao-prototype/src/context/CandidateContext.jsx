@@ -10,7 +10,13 @@ const defaultState = {
   score: null,          // 总分
   firstSubject: '',     // 首选科目（3+1+2）：'physics' | 'history'
   optionals: [],        // 再选科目（3+1+2）：如 ['chemistry', 'biology']
-  interests: [],        // 兴趣标签，如 ['985', '理工', '北京']，供 ReportEngine 使用
+  preferences: {
+    locations: [],      // 地域偏好：['R1', 'R2', ...] (REGION_GROUPS IDs)
+    majorGroups: [],    // 专业偏好：['工学', '理学', ...]
+    strategy: 'balanced', // 策略：'university_first' | 'major_first' | 'location_first' | 'balanced'
+    tuitionAffordability: 'unlimited', // 学费倾向：'3k_limit' | '8k_limit' | 'unlimited'
+  },
+  interests: [],        // 独立的兴趣标签数组，用于 SolutionCard (legacy)
   rank: null,           // 派生位次（由 scoreToRank 计算）
   total: null,          // 全省参考人数
   volunteers: [],       // [{ id, university, major, category, order }]
@@ -32,12 +38,20 @@ function loadFromStorage() {
 function reducer(state, action) {
   switch (action.type) {
     case 'SET_CANDIDATE': {
-      const { province, examType, score, firstSubject, optionals, interests } = action.payload
+      const { province, examType, score, firstSubject, optionals, preferences } = action.payload
       return { ...state, province, examType, score, firstSubject, optionals,
-               interests: interests ?? state.interests }
+               preferences: preferences ?? state.preferences }
     }
     case 'SET_RANK': {
       return { ...state, rank: action.payload.rank, total: action.payload.total }
+    }
+    case 'SET_INTERESTS': {
+      return { ...state, interests: action.payload }
+    }
+    case 'SET_INTERESTS_FUNC': {
+      // payload 是一个函数: prev => newInterests
+      const newInterests = action.payload(state.interests || [])
+      return { ...state, interests: newInterests }
     }
     case 'ADD_VOLUNTEER': {
       const { university, major, category } = action.payload
@@ -125,9 +139,19 @@ export function CandidateProvider({ children }) {
     localStorage.removeItem(STORAGE_KEY)
   }, [])
 
+  const setInterests = useCallback((newInterests) => {
+    // 支持函数式更新或直接值
+    if (typeof newInterests === 'function') {
+      dispatch({ type: 'SET_INTERESTS_FUNC', payload: newInterests })
+    } else {
+      dispatch({ type: 'SET_INTERESTS', payload: newInterests })
+    }
+  }, [])
+
   const value = {
     ...state,
     setCandidate,
+    setInterests,
     addVolunteer,
     removeVolunteer,
     reorderVolunteers,

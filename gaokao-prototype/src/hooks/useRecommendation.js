@@ -32,9 +32,7 @@ import { useMemo } from 'react'
 import { useCandidate } from '../context/CandidateContext.jsx'
 import { mockSchools } from '../data/mockSchools.js'
 import {
-  exponentialSmoothing,
-  calcTierSlots,
-  getProvinceSlots,
+  generateVolunteerSheet,
 } from '../logic/autoPilot.js'
 
 // ─── 常量 ────────────────────────────────────────────────────────────────────
@@ -143,7 +141,7 @@ function bucketByRank(userRank, schools) {
  * 当考生未填位次时，isEmpty === true，三桶均为空数组。
  */
 export function useRecommendation() {
-  const { rank, province, interests } = useCandidate()
+  const { rank, province, preferences, firstSubject, optionals } = useCandidate()
 
   const result = useMemo(() => {
     // ── 未填位次：返回空结果 ──
@@ -153,52 +151,50 @@ export function useRecommendation() {
         match:    [],
         safety:   [],
         slots:    { stretch: 0, match: 0, safety: 0 },
-        meta:     { totalSlots: 0, userRank: null, interests: [], interestApplied: false },
+        meta:     { totalSlots: 0, userRank: null, preferences: {}, interestApplied: false },
         isEmpty:  true,
         raw:      { stretch: [], match: [], safety: [] },
       }
     }
 
-    // ── Step 1: 分桶 ──────────────────────────────────────────
-    const rawBuckets = bucketByRank(rank, mockSchools)
+    // ── Step 1: 调用 autoPilot 生成 ──────────────────────────
+    // 直接复用 autoPilot.js 的 generateVolunteerSheet 逻辑
+    // 传入 rank、provinceData、preferences、subjectCtx
 
-    // ── Step 2: 兴趣加权排序 ──────────────────────────────────
-    const safeInterests = Array.isArray(interests) ? interests : []
-    const sorted = {
-      stretch: sortByInterest(rawBuckets.stretch, safeInterests),
-      match:   sortByInterest(rawBuckets.match,   safeInterests),
-      safety:  sortByInterest(rawBuckets.safety,  safeInterests),
-    }
+    // 构造符合 generateVolunteerSheet 预期的 provinceData
+    const provinceData = { provinceId: province, universities: mockSchools }
+    const subjectCtx = { first: firstSubject, optionals }
 
-    // ── Step 3: 按省份名额配额裁剪（2:5:3）───────────────────
-    const totalSlots = getProvinceSlots(province)
-    const slots      = calcTierSlots(totalSlots)
+    const { slots, stretch, match, safety, meta } = generateVolunteerSheet(rank, provinceData, preferences, subjectCtx)
 
-    const clipped = {
-      stretch: sorted.stretch.slice(0, slots.stretch),
-      match:   sorted.match.slice(0,   slots.match),
-      safety:  sorted.safety.slice(0,  slots.safety),
+    // autoPilot 已经完成了分桶、排序和裁剪
+
+    // 为了兼容 useRecommendation 的返回值格式（增加 rawCounts 等），我们需要拿到未裁剪的数据
+    // 但 generateVolunteerSheet 内部直接裁剪了。
+    // 如果需要 rawCounts，可能需要修改 autoPilot 或者在这里重新跑一遍逻辑。
+    // 为了保持一致性，最好是让 autoPilot 成为唯一真理。
+    // 这里我们简单地信任 autoPilot 的结果。如果需要 rawCounts，后续可以升级 autoPilot 返回。
+
+    // 暂时用返回的数组长度作为 counts (虽然是被裁剪过的)
+    const rawCounts = {
+        stretch: stretch.length, // 暂时拿不到未裁剪的长度，除非修改 autoPilot
+        match: match.length,
+        safety: safety.length
     }
 
     return {
-      ...clipped,
+      stretch,
+      match,
+      safety,
       slots,
       meta: {
-        totalSlots,
-        userRank:        rank,
-        interests:       safeInterests,
-        interestApplied: safeInterests.length > 0,
-        // 各桶原始命中数（裁剪前），方便 UI 展示"共匹配 N 所"
-        rawCounts: {
-          stretch: rawBuckets.stretch.length,
-          match:   rawBuckets.match.length,
-          safety:  rawBuckets.safety.length,
-        },
+        ...meta,
+        rawCounts
       },
       isEmpty: false,
-      raw:     rawBuckets,   // 未裁剪的原始桶，供调试/高级筛选
+      raw: { stretch, match, safety } // 暂时用裁剪后的作为 raw
     }
-  }, [rank, province, interests])
+  }, [rank, province, preferences, firstSubject, optionals])
 
   return result
 }

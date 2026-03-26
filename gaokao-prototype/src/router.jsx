@@ -1,43 +1,75 @@
 import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
+import WorkspaceLayout from './components/WorkspaceLayout.jsx'
 import ScoreInputModal from './components/ScoreInputModal.jsx'
 import { useUI } from './context/UIContext.jsx'
 
-// 页面导入
+// SERP Mode Pages (Search/Browse)
 import HomePage from './pages/HomePage.jsx'
 import RecommendationPage from './pages/RecommendationPage.jsx'
-import VolunteerSheetPage from './pages/VolunteerSheetPage.jsx'
-import AIReportPage from './pages/AIReportPage.jsx'
 import UniWikiPage from './pages/UniWikiPage.jsx'
 import MajorWikiPage from './pages/MajorWikiPage.jsx'
 import ScoreRankPage from './pages/ScoreRankPage.jsx'
 
-/** 根布局组件 — 从 UIContext 取 modal 状态，不再本地持有 */
-function RootLayout() {
-  const { scoreModalOpen, openScoreModal, closeScoreModal } = useUI()
+// Workspace Mode Pages (Production/Document)
+import VolunteerSheetPage from './pages/VolunteerSheetPage.jsx'
+import AIReportPage from './pages/AIReportPage.jsx'
+
+/** SERP 模式根布局 — 使用标准 Layout (8:4 或 7:3 网格) */
+function SerpLayout() {
+  const { scoreModalOpen, scoreModalInitialExpanded, openScoreModal, closeScoreModal } = useUI()
 
   return (
     <Layout onOpenScoreModal={openScoreModal}>
       <Outlet />
       {scoreModalOpen && (
-        <ScoreInputModal onClose={closeScoreModal} />
+        <ScoreInputModal onClose={closeScoreModal} initialExpanded={scoreModalInitialExpanded} />
       )}
     </Layout>
   )
 }
 
+/** Workspace 模式根布局 — 使用 WorkspaceLayout (全宽生产力布局) */
+function WorkspaceRootLayout() {
+  const { scoreModalOpen, scoreModalInitialExpanded, openScoreModal, closeScoreModal } = useUI()
+
+  return (
+    <WorkspaceLayout onOpenScoreModal={openScoreModal}>
+      <Outlet />
+      {scoreModalOpen && (
+        <ScoreInputModal onClose={closeScoreModal} initialExpanded={scoreModalInitialExpanded} />
+      )}
+    </WorkspaceLayout>
+  )
+}
+
 const router = createBrowserRouter([
+  // ── SERP Mode Routes (搜索浏览模式) ──
   {
     path: '/',
-    element: <RootLayout />,
+    element: <SerpLayout />,
     children: [
       { index: true,            element: <HomePage /> },
       { path: 'recommendation', element: <RecommendationPage /> },
-      { path: 'volunteers',     element: <VolunteerSheetPage /> },
-      { path: 'ai-report',      element: <AIReportPage /> },
       { path: 'wiki/uni',       element: <UniWikiPage /> },
       { path: 'wiki/major',     element: <MajorWikiPage /> },
       { path: 'score-rank',     element: <ScoreRankPage /> },
+    ],
+  },
+
+  // ── Workspace Mode Routes (工作台模式) ──
+  {
+    path: '/sheet',
+    element: <WorkspaceRootLayout />,
+    children: [
+      { index: true, element: <VolunteerSheetPage /> },
+    ],
+  },
+  {
+    path: '/ai-report',
+    element: <WorkspaceRootLayout />,
+    children: [
+      { index: true, element: <AIReportPage /> },
     ],
   },
 ])

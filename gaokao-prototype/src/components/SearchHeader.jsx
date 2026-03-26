@@ -37,21 +37,15 @@ export function SearchHeader({ navItems, onOpenScoreModal }) {
         </button>
       </div>
 
-      <div className="search-tabs">
-        {navItems.map(({ to, label, enLabel }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              `search-tab ${isActive ? 'active' : ''}`
-            }
-          >
-            <span>{label}</span>
-            {enLabel && <span className="tab-en">{enLabel}</span>}
-          </NavLink>
-        ))}
-      </div>
+      <nav className="flex items-center gap-6 px-6 max-w-[1600px] mx-auto font-['Plus_Jakarta_Sans'] text-sm font-medium tracking-tight mt-3 border-b border-gray-200/50">
+        <a className="text-slate-500 dark:text-slate-400 hover:text-[#0078D4] pb-2 transition-all" href="#">All</a>
+        <a className="text-slate-500 dark:text-slate-400 hover:text-[#0078D4] pb-2 transition-all" href="#">Images</a>
+        <a className="text-slate-500 dark:text-slate-400 hover:text-[#0078D4] pb-2 transition-all" href="#">Videos</a>
+        <a className="text-[#0078D4] dark:text-[#47A1EB] font-bold border-b-[3px] border-[#0078D4] pb-2 transition-all" href="#">Gaokao</a>
+        <a className="text-slate-500 dark:text-slate-400 hover:text-[#0078D4] pb-2 transition-all" href="#">News</a>
+        <a className="text-slate-500 dark:text-slate-400 hover:text-[#0078D4] pb-2 transition-all" href="#">Shopping</a>
+        <a className="text-slate-500 dark:text-slate-400 hover:text-[#0078D4] pb-2 transition-all" href="#">More</a>
+      </nav>
     </div>
   );
 }

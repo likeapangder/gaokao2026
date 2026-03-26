@@ -159,37 +159,81 @@ export function calcTierSlots(totalSlots) {
 }
 
 /**
- * 计算单所院校对一组兴趣标签的匹配得分
+ * 计算单所院校对用户偏好的匹配得分
  *
- * 匹配规则（可叠加，无上限）：
- *   院校 type     命中 interests → +30 分
- *   院校 tags     每命中一个    → +15 分（如 '985'、'211'、'双一流'）
- *   院校 level_tags 每命中一个 → +20 分（如 '顶尖985'、'强势理工'）
+ * 匹配规则：
+ * 1. 基础分：0
+ * 2. 策略加权：
+ *    - location_first: 命中 locations +50
+ *    - university_first: 命中 level_tags (985/211/双一流) +40
+ *    - major_first: 命中 majorGroups (该校有相关专业) +40
+ *    - balanced: 各项权重均衡 (+15~20)
+ * 3. 细项加权：
+ *    - 院校类型 (理工/综合等) +10
+ *    - 具体标签 (985/211) +10
  *
  * @param {import('../data/universities').University} uni
- * @param {string[]} interests - 兴趣标签，如 ['理工', 'AI', '985', '北京']
- * @returns {number} 原始兴趣分（用于组内权重排序，≥ 0）
+ * @param {import('../context/CandidateContext').Preferences} preferences
+ * @returns {number} 兴趣匹配分
  */
-function calcInterestScore(uni, interests) {
-  if (!interests || interests.length === 0) return 0
+function calcInterestScore(uni, preferences) {
+  if (!preferences) return 0
 
-  const interestSet = new Set(interests.map((s) => s.trim().toLowerCase()))
+  const { locations = [], majorGroups = [], strategy = 'balanced' } = preferences
   let score = 0
 
-  // 院校类型匹配（如 '理工'、'综合'、'师范'）
-  if (uni.type && interestSet.has(uni.type.toLowerCase())) score += 30
+  // 1. 地域匹配
+  const locSet = new Set(locations)
+  const locHit = uni.province && locSet.has(uni.province)
 
-  // 省市匹配（如 '北京'、'上海'）
-  if (uni.province && interestSet.has(uni.province.toLowerCase())) score += 25
-
-  // tags 匹配（如 '985'、'211'、'双一流'、'C9'）
-  for (const tag of uni.tags ?? []) {
-    if (interestSet.has(tag.toLowerCase())) score += 15
+  if (locHit) {
+    if (strategy === 'location_first') score += 50
+    else score += 20 // balanced 或其他策略下的基础分
   }
 
-  // level_tags 匹配（如 '顶尖985'、'强势理工'、'建筑名校'）
-  for (const tag of uni.level_tags ?? []) {
-    if (interestSet.has(tag.toLowerCase())) score += 20
+  // 2. 院校层级匹配 (985/211/双一流)
+  const isTopUni = uni.tags?.some(t => ['985', '211', '双一流'].includes(t)) ||
+                   uni.level_tags?.some(t => t.includes('985') || t.includes('211'))
+
+  if (isTopUni) {
+    if (strategy === 'university_first') score += 50
+    else if (strategy === 'balanced') score += 20
+    else score += 10
+  }
+
+  // 3. 专业匹配 (检查 uni.majorGroups 是否包含用户偏好的学科门类)
+  // 注意：mockSchools.js 中 majorGroups 是对象数组，需检查其 groupName 或 category
+  // 这里简化逻辑：如果 preferences.majorGroups 包含 '工学'，且 uni.type 为 '理工' 或 '综合'，加分
+  // 更精细的匹配需要遍历 uni.majorGroups (如果数据源提供了)
+
+  const majorSet = new Set(majorGroups)
+  let majorHit = false
+
+  // 粗略匹配：根据学校类型和强势专业标签
+  if (majorSet.has('工学') && (uni.type === '理工' || uni.tags?.includes('理工'))) majorHit = true
+  if (majorSet.has('医学') && (uni.type === '医药' || uni.name.includes('医'))) majorHit = true
+  if (majorSet.has('师范') && (uni.type === '师范' || uni.name.includes('师范'))) majorHit = true
+  if (majorSet.has('财经') && (uni.type === '财经' || uni.name.includes('财经'))) majorHit = true
+
+  // 精细匹配：检查 majorGroups 数据
+  if (uni.majorGroups && uni.majorGroups.length > 0) {
+     for (const mg of uni.majorGroups) {
+       // 假设 majorGroups 中包含学科门类信息，或者通过 groupName 模糊匹配
+       if (majorSet.has('工学') && (mg.groupName.includes('工') || mg.groupName.includes('理'))) majorHit = true
+       if (majorSet.has('医学') && mg.groupName.includes('医')) majorHit = true
+       // ... 更多匹配逻辑
+     }
+  }
+
+  if (majorHit) {
+    if (strategy === 'major_first') score += 50
+    else score += 20
+  }
+
+  // 4. 额外标签加分 (balanced 策略下)
+  if (strategy === 'balanced') {
+     // 略微增加名校权重
+     if (uni.level_tags?.includes('C9')) score += 10
   }
 
   return score
@@ -199,65 +243,87 @@ function calcInterestScore(uni, interests) {
  * 对一组院校按「兴趣加权综合得分」降序排列
  *
  * 综合得分公式：
- *   finalScore = interestScore * 1.2 + rankScore
- *   rankScore  = MAX_RANK - smoothedRank（位次越小 rankScore 越高）
- *
- * 兴趣加权系数 +20% 对应用户需求中的「权值 +20%」——
- * 通过放大 interestScore 相对于 rankScore 的比重实现，
- * 而非直接修改 smoothedRank，保留原始位次数据的可解释性。
+ *   finalScore = interestScore * 权重系数 + rankScore
  *
  * @param {Array} enrichedUnis  - 含 smoothedRank 的院校列表
- * @param {string[]} interests
+ * @param {import('../context/CandidateContext').Preferences} preferences
  * @returns {Array} 带 interestScore / finalScore 字段的新数组，按 finalScore 降序
  */
-function sortWithInterests(enrichedUnis, interests) {
-  const MAX_RANK = 1_000_000  // 位次上界（用于将 rank 转为正向分数）
+function sortWithInterests(enrichedUnis, preferences) {
+  const MAX_RANK = 1_000_000  // 位次上界
+
+  // 如果没有任何偏好，直接按位次排序
+  const hasPrefs = preferences && (
+    (preferences.locations && preferences.locations.length > 0) ||
+    (preferences.majorGroups && preferences.majorGroups.length > 0) ||
+    preferences.strategy !== 'balanced'
+  )
 
   return enrichedUnis
     .map((uni) => {
-      const interestScore = calcInterestScore(uni, interests)
+      const interestScore = hasPrefs ? calcInterestScore(uni, preferences) : 0
       const rankScore     = MAX_RANK - uni.smoothedRank
-      // 兴趣加权 +20%：interestScore 乘以 1.2 后与位次分合并
-      const finalScore    = interestScore * 1.2 + rankScore
+
+      // 策略影响权重系数
+      // location_first / major_first / university_first 策略下，interestScore 影响更大
+      let weight = 1.2
+      if (preferences?.strategy && preferences.strategy !== 'balanced') {
+        weight = 2.0 // 激进策略下，偏好权重翻倍
+      }
+
+      const finalScore    = interestScore * weight + rankScore
       return { ...uni, interestScore, finalScore }
     })
     .sort((a, b) => b.finalScore - a.finalScore)
+}
+
+// ─────────────────────────────────────────────────────────────
+//  § Rule 1: The Subject Guard (Hard Filter)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 严格校验选科匹配 (Rule 1)
+ *
+ * @param {string[]} majorReqs - 专业要求: ['physics'] 或 ['physics','chemistry']
+ * @param {object} candidateSubjects - 考生选科: { first: 'physics', optionals: ['chemistry','biology'] }
+ * @returns {boolean} true=匹配, false=淘汰
+ */
+function checkSubjectMatch(majorReqs, candidateSubjects) {
+  // 如果专业无要求，或者数据缺失，默认通过
+  if (!majorReqs || majorReqs.length === 0) return true
+
+  // 考生科目集合
+  const userSubs = new Set([
+    candidateSubjects.first,
+    ...(candidateSubjects.optionals || [])
+  ].filter(Boolean))
+
+  // 逻辑：专业要求的科目，考生必须全部包含 (AND关系)
+  // 注：实际高考中有些是 OR 关系 (选其一)，有些是 AND 关系。
+  // 本 Prototype 简化为：majorReqs 中的科目必须全部命中。
+  // 生产环境应根据 `reqType` ('and'|'or') 区分。
+  for (const req of majorReqs) {
+    if (!userSubs.has(req)) return false
+  }
+  return true
 }
 
 /**
  * 梯度志愿表生成器（完整版）
  *
  * 输入:
- *   userRank     — 考生位次（由 rankEngine.scoreToRank 计算）
- *   provinceData — 包含该省全量院校列表的对象，结构：
- *                  { provinceId: string, universities: University[] }
- *   interests    — 兴趣标签数组，如 ['985', '理工', '北京', 'AI']
- *
- * 输出:
- *   {
- *     slots:   { stretch, match, safety },          // 各档名额
- *     stretch: University[],                        // 冲档（已加权 + 裁剪）
- *     match:   University[],                        // 稳档
- *     safety:  University[],                        // 保档
- *     meta: {
- *       totalSlots,    // 该省志愿总名额
- *       userRank,      // 考生位次（透传）
- *       interests,     // 兴趣标签（透传）
- *       interestApplied, // 是否启用了兴趣加权
- *     }
- *   }
- *
- * 分档位次区间（基于 userRank 绝对值，与 generateRecommendations 保持一致）：
- *   冲：smoothedRank ∈ [userRank × 0.85, userRank × 0.98)
- *   稳：smoothedRank ∈ [userRank × 0.98, userRank × 1.15]
- *   保：smoothedRank ∈ (userRank × 1.15, userRank × 1.50]
+ *   userRank     — 考生位次
+ *   provinceData — 省份数据
+ *   preferences  — 用户偏好对象 { locations, majorGroups, strategy }
+ *   subjectCtx   — 选科上下文 { first: 'physics', optionals: [] } (New in Phase 3)
  *
  * @param {number}   userRank
  * @param {{ provinceId: string, universities: Array }} provinceData
- * @param {string[]} interests
+ * @param {import('../context/CandidateContext').Preferences} preferences
+ * @param {{ first: string, optionals: string[] }} subjectCtx
  * @returns {{ slots: object, stretch: Array, match: Array, safety: Array, meta: object }}
  */
-export function generateVolunteerSheet(userRank, provinceData, interests = []) {
+export function generateVolunteerSheet(userRank, provinceData, preferences = {}, subjectCtx = {}) {
   const { provinceId, universities } = provinceData
 
   // ── Step 1: 计算该省名额分配 ──────────────────────────────
@@ -268,12 +334,23 @@ export function generateVolunteerSheet(userRank, provinceData, interests = []) {
   const buckets = { stretch: [], match: [], safety: [] }
 
   for (const uni of universities) {
+    // [Rule 1 Guard] 选科强校验
+    // 检查该校是否有任一专业组符合考生选科。
+    // 如果 uni.majorGroups 存在，则必须至少有一个组匹配，否则整校淘汰。
+    // 如果没有 majorGroups 数据 (mockSchools 早期数据)，则跳过校验 (fallback allowed)。
+    if (uni.majorGroups && uni.majorGroups.length > 0) {
+      const hasValidGroup = uni.majorGroups.some(group =>
+        checkSubjectMatch(group.subjects, subjectCtx)
+      )
+      if (!hasValidGroup) continue // ⛔️ DROP: 选科不符
+    }
+
     if (!uni.rank_history || uni.rank_history.length === 0) continue
 
     const smoothedRank = exponentialSmoothing(uni.rank_history)
     const enriched     = { ...uni, smoothedRank }
 
-    // 筛选区间（与用户提供的伪代码对齐）
+    // 筛选区间
     if (smoothedRank >= userRank * 0.85 && smoothedRank < userRank * 0.98) {
       buckets.stretch.push(enriched)
     } else if (smoothedRank >= userRank * 0.98 && smoothedRank <= userRank * 1.15) {
@@ -281,19 +358,28 @@ export function generateVolunteerSheet(userRank, provinceData, interests = []) {
     } else if (smoothedRank > userRank * 1.15 && smoothedRank <= userRank * 1.50) {
       buckets.safety.push(enriched)
     }
-    // smoothedRank < userRank × 0.85 → 远超实力，排除
-    // smoothedRank > userRank × 1.50 → 过于保守，排除
   }
 
-  // ── Step 3: 兴趣加权排序 ──────────────────────────────────
-  const interestApplied = interests.length > 0
+  // ── Step 3: 兴趣加权排序 (Rule 4) ─────────────────────────
+  // 兼容旧版 interests 数组调用
+  let prefs = preferences
+  if (Array.isArray(preferences)) {
+     prefs = { strategy: 'balanced', locations: [], majorGroups: [] }
+  }
+
+  const interestApplied = prefs && (
+    (prefs.locations?.length > 0) ||
+    (prefs.majorGroups?.length > 0) ||
+    (prefs.strategy && prefs.strategy !== 'balanced')
+  )
+
   const ranked = {
-    stretch: sortWithInterests(buckets.stretch, interests),
-    match:   sortWithInterests(buckets.match,   interests),
-    safety:  sortWithInterests(buckets.safety,  interests),
+    stretch: sortWithInterests(buckets.stretch, prefs),
+    match:   sortWithInterests(buckets.match,   prefs),
+    safety:  sortWithInterests(buckets.safety,  prefs),
   }
 
-  // ── Step 4: 按名额裁剪（取前 N 位，已按综合得分降序）──────
+  // ── Step 4: 按名额裁剪 ────────────────────────────────────
   const result = {
     stretch: ranked.stretch.slice(0, slots.stretch),
     match:   ranked.match.slice(0,   slots.match),
@@ -306,8 +392,86 @@ export function generateVolunteerSheet(userRank, provinceData, interests = []) {
     meta: {
       totalSlots,
       userRank,
-      interests,
+      preferences: prefs,
       interestApplied,
     },
   }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  § GroupBy 聚合 — 院校视图 & 专业视图
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 检查偏好是否是"未自定义"的默认空状态
+ * 用于判断用户是否展开并填写了偏好矩阵
+ *
+ * @param {object} preferences
+ * @returns {boolean} true = 偏好为空/默认值
+ */
+export function isPreferencesEmpty(preferences) {
+  if (!preferences) return true
+  const { locations = [], majorGroups = [], strategy = 'balanced', tuitionAffordability = 'unlimited' } = preferences
+  return (
+    locations.length === 0 &&
+    majorGroups.length === 0 &&
+    strategy === 'balanced' &&
+    tuitionAffordability === 'unlimited'
+  )
+}
+
+/**
+ * 按院校聚合：将冲/稳/保三桶中的结果，以院校为主键，
+ * 院校下挂载匹配的专业组列表
+ *
+ * @param {object[]} bucket — enriched 院校列表（含 smoothedRank）
+ * @returns {object[]}
+ */
+export function groupByUniversity(bucket) {
+  return bucket.map((uni) => ({
+    ...uni,
+    matchedMajors: uni.majorGroups ?? [],
+  }))
+}
+
+/**
+ * 按专业聚合：将冲/稳/保三桶中的结果，以专业门类为主键，
+ * 专业下挂载来自不同院校的该专业信息
+ *
+ * @param {object[]} bucket — enriched 院校列表（含 smoothedRank + majorGroups）
+ * @returns {object[]}
+ */
+export function groupByMajor(bucket) {
+  const majorMap = new Map()
+
+  for (const uni of bucket) {
+    const groups = uni.majorGroups ?? []
+    for (const mg of groups) {
+      const key = mg.groupName
+      if (!majorMap.has(key)) {
+        majorMap.set(key, {
+          majorName: mg.groupName,
+          majorCode: mg.groupCode,
+          universities: [],
+        })
+      }
+      majorMap.get(key).universities.push({
+        uniId: uni.id,
+        uniName: uni.name,
+        province: uni.province,
+        type: uni.type,
+        tags: uni.tags ?? [],
+        level_tags: uni.level_tags ?? [],
+        smoothedRank: uni.smoothedRank,
+        groupCode: mg.groupCode,
+        groupName: mg.groupName,
+        subjects: mg.subjects ?? [],
+      })
+    }
+  }
+
+  // 按院校数量降序排列（热门专业排前面）
+  return Array.from(majorMap.values()).sort(
+    (a, b) => b.universities.length - a.universities.length
+  )
 }
