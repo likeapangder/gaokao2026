@@ -27,6 +27,21 @@ import SerpFeatureCard from './SerpFeatureCard.jsx'
 
 const CHART_COLORS = ['#0078D4', '#00BCF2', '#00B7C3', '#8661C5', '#5C2D91']
 
+// 科目代码 → 中文
+const SUBJECT_CN = {
+  physics: '物理', chemistry: '化学', biology: '生物',
+  history: '历史', geography: '地理', politics: '政治',
+}
+function formatSubjectReq(req) {
+  if (!req) return '不限'
+  if (typeof req === 'string') return req
+  const { required = [], optional = [] } = req
+  const parts = []
+  if (required.length) parts.push(`必选：${required.map(s => SUBJECT_CN[s] ?? s).join('、')}`)
+  if (optional.length) parts.push(`选考：${optional.map(s => SUBJECT_CN[s] ?? s).join('、')}`)
+  return parts.length ? parts.join('；') : '不限'
+}
+
 const TABS = [
   { id: 'core', label: '基本介绍', icon: MapPin },
   { id: 'majors', label: '开设专业', icon: BookOpen },
@@ -216,7 +231,7 @@ export default function SerpSchoolCard({
                     <span className="chip chip--light">{major.category}</span>
                   </div>
                   <div className="major-list-item__meta">
-                    <span>选科：{major.subject_requirement}</span>
+                    <span>选科：{formatSubjectReq(major.subject_requirement)}</span>
                     <span>就业前景：{major.job_prospects}</span>
                   </div>
                 </div>

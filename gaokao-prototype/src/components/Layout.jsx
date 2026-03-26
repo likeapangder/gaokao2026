@@ -1,9 +1,20 @@
 import { BrowserBar } from './BrowserBar'
 import { SearchHeader } from './SearchHeader'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { UniWikiSidebar } from '../pages/UniWikiPage'
 import { MajorWikiSidebar } from '../pages/MajorWikiPage'
 import '../styles/search-page.css'
+import { useState, useCallback, createContext, useContext } from 'react'
+
+// ─── SearchQuery 全局上下文
+// 允许深层子组件（GaokaoSerpContainer）向上写入搜索框内容
+const SearchQueryContext = createContext(null)
+
+export function useSearchQuery() {
+  const ctx = useContext(SearchQueryContext)
+  if (!ctx) throw new Error('useSearchQuery must be used within Layout')
+  return ctx
+}
 
 const NAV_ITEMS = [
   { to: '/',              label: '首页',       enLabel: 'Home' },
@@ -101,7 +112,24 @@ function DefaultSidebar() {
 }
 
 export default function Layout({ children, onOpenScoreModal }) {
-  const location = useLocation();
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // ── 全局搜索框受控状态
+  const [searchQuery, setSearchQuery] = useState('高考')
+
+  // 用户在搜索框手动搜索 → 路由跳转或直接更新
+  const handleSearch = useCallback((query) => {
+    if (!query) return
+    setSearchQuery(query)
+    // 根据 query 判断跳转目标（简化版：统一跳转到 wiki/uni 搜索）
+    navigate(`/wiki/uni?q=${encodeURIComponent(query)}`)
+  }, [navigate])
+
+  // 子组件触发实体搜索（如 GaokaoSerpContainer.onEntityClick）
+  const handleSearchChange = useCallback((query) => {
+    setSearchQuery(query)
+  }, [])
 
   // Determine which sidebar to show based on route
   const getSidebar = () => {
@@ -121,27 +149,33 @@ export default function Layout({ children, onOpenScoreModal }) {
   const sidebarColSpan = isMajorPage ? 'xl:col-span-3' : 'xl:col-span-4';
 
   return (
-    <div className="search-page bg-[#F8F9FB] min-h-screen">
-      <BrowserBar />
-      <SearchHeader navItems={NAV_ITEMS} onOpenScoreModal={onOpenScoreModal} />
+    <SearchQueryContext.Provider value={{ searchQuery, setSearchQuery: handleSearchChange }}>
+      <div className="search-page bg-[#F8F9FB] min-h-screen">
+        <BrowserBar />
+        <SearchHeader
+          onOpenScoreModal={onOpenScoreModal}
+          searchQuery={searchQuery}
+          onSearch={handleSearch}
+        />
 
-      {/* ── 页面内容 ── */}
-      <main className={`px-8 py-8 max-w-[1600px] mx-auto grid grid-cols-1 ${isMajorPage ? 'xl:grid-cols-10' : 'xl:grid-cols-12'} gap-8 items-start relative min-h-screen`}>
-        {/* Left Column - Main Content */}
-        <div className={`${mainColSpan} space-y-6`}>
-          {children}
-        </div>
+        {/* ── 页面内容 ── */}
+        <main className={`px-8 py-8 max-w-[1600px] mx-auto grid grid-cols-1 ${isMajorPage ? 'xl:grid-cols-10' : 'xl:grid-cols-12'} gap-8 items-start relative min-h-screen`}>
+          {/* Left Column - Main Content */}
+          <div className={`${mainColSpan} space-y-6`}>
+            {children}
+          </div>
 
-        {/* Right Column - Dynamic Sidebar (sticky) */}
-        <aside className={`${sidebarColSpan} sticky top-6 space-y-8 hidden xl:block`}>
-          {getSidebar()}
-        </aside>
-      </main>
+          {/* Right Column - Dynamic Sidebar (sticky) */}
+          <aside className={`${sidebarColSpan} sticky top-6 space-y-8 hidden xl:block`}>
+            {getSidebar()}
+          </aside>
+        </main>
 
-      {/* ── 底部版权 ── */}
-      <footer className="solution-footer" style={{ maxWidth: '1600px', margin: '0 auto', padding: '20px 32px' }}>
-        <p className="footer-source">© 2026 必应高考 · 数据仅供参考，请以官方公布为准</p>
-      </footer>
-    </div>
+        {/* ── 底部版权 ── */}
+        <footer className="solution-footer" style={{ maxWidth: '1600px', margin: '0 auto', padding: '20px 32px' }}>
+          <p className="footer-source">© 2026 必应高考 · 数据仅供参考，请以官方公布为准</p>
+        </footer>
+      </div>
+    </SearchQueryContext.Provider>
   )
 }

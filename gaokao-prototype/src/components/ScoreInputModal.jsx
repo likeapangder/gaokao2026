@@ -514,7 +514,7 @@ export default function ScoreInputModal({ onClose, initialExpanded = false }) {
               }`}
             >
               <TrendingUp size={18} />
-              {isPreferencesExpanded ? '生成完整方案与 AI 报告' : '查看智能推荐'}
+              {isPreferencesExpanded ? '生成 AI 报告' : '查看智能推荐'}
             </button>
           </div>
         </form>

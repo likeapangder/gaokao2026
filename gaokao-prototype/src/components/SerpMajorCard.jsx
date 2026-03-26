@@ -20,6 +20,31 @@ import SerpFeatureCard from './SerpFeatureCard.jsx'
 
 const CHART_COLORS = ['#0078D4', '#00BCF2', '#00B7C3', '#8661C5', '#5C2D91']
 
+// 科目代码 → 中文
+const SUBJECT_CN = {
+  physics: '物理', chemistry: '化学', biology: '生物',
+  history: '历史', geography: '地理', politics: '政治',
+}
+
+/**
+ * 将 subject_requirement 对象 { required: [...], optional: [...] }
+ * 转换为可读字符串，如 "必选：物理；选考：化学"
+ * 若传入的已经是字符串则直接返回。
+ */
+function formatSubjectReq(req) {
+  if (!req) return '不限'
+  if (typeof req === 'string') return req
+  const { required = [], optional = [] } = req
+  const parts = []
+  if (required.length) {
+    parts.push(`必选：${required.map(s => SUBJECT_CN[s] ?? s).join('、')}`)
+  }
+  if (optional.length) {
+    parts.push(`选考：${optional.map(s => SUBJECT_CN[s] ?? s).join('、')}`)
+  }
+  return parts.length ? parts.join('；') : '不限'
+}
+
 const TABS = [
   { id: 'overview', label: '专业概况', icon: Info },
   { id: 'schools', label: '开设院校', icon: School },
@@ -72,7 +97,7 @@ export default function SerpMajorCard({
   const subtitleNodes = (
     <>
       <span className="chip chip--accent">{major.category}</span>
-      <span className="chip chip--secondary">{major.subject_requirement}</span>
+      <span className="chip chip--secondary">{formatSubjectReq(major.subject_requirement)}</span>
     </>
   )
 
@@ -115,7 +140,7 @@ export default function SerpMajorCard({
                     </div>
                     <div className="info-item">
                       <span className="info-item__label">选科要求</span>
-                      <span className="info-item__value">{major.subject_requirement}</span>
+                      <span className="info-item__value">{formatSubjectReq(major.subject_requirement)}</span>
                     </div>
                   </div>
                 </div>

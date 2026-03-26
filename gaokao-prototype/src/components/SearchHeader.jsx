@@ -1,8 +1,36 @@
 import { Search, Settings } from 'lucide-react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useRef, useEffect } from 'react';
 
-export function SearchHeader({ navItems, onOpenScoreModal }) {
+/**
+ * SearchHeader — Bing SERP 顶部搜索栏
+ *
+ * Props:
+ *   onOpenScoreModal  — 打开成绩填写弹窗
+ *   searchQuery       — 受控搜索框内容（由 Layout 传入，可被 GaokaoSerpContainer 联动更新）
+ *   onSearch          — 用户主动搜索时的回调 (query: string) => void
+ */
+export function SearchHeader({ onOpenScoreModal, searchQuery = '高考', onSearch }) {
   const navigate = useNavigate();
+  const inputRef = useRef(null);
+
+  // 当 searchQuery 外部变更时，同步更新输入框显示值
+  useEffect(() => {
+    if (inputRef.current && inputRef.current.value !== searchQuery) {
+      inputRef.current.value = searchQuery;
+    }
+  }, [searchQuery]);
+
+  const handleSearch = () => {
+    const query = inputRef.current?.value?.trim() || '';
+    if (onSearch) {
+      onSearch(query);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSearch();
+  };
 
   return (
     <div className="search-header">
@@ -19,12 +47,15 @@ export function SearchHeader({ navItems, onOpenScoreModal }) {
           <div className="search-box">
             <Search size={18} className="search-icon" />
             <input
+              ref={inputRef}
               type="text"
               className="search-input"
               placeholder="搜索院校、专业、政策..."
-              defaultValue="高考"
+              defaultValue={searchQuery}
+              onKeyDown={handleKeyDown}
+              aria-label="搜索框"
             />
-            <button className="search-button">搜索</button>
+            <button className="search-button" onClick={handleSearch}>搜索</button>
           </div>
         </div>
 

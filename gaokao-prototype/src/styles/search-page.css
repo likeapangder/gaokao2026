@@ -550,3 +550,512 @@
   background: linear-gradient(90deg, transparent, rgba(0,0,0,0.08), transparent);
   margin: 8px 0;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   GaokaoSerpContainer — 常驻导航 + 原地渲染 SERP 容器
+   ══════════════════════════════════════════════════════════════ */
+
+.gaokao-serp-container {
+  /* contain 隔离确保内部滚动和布局不影响外部 */
+  contain: layout style;
+}
+
+/* 滚动条隐藏（Webkit + Firefox） */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Tailwind animate-in 动画支持（如未引入插件则手动补充）── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(6px); }
+  to   { transform: translateY(0); }
+}
+.animate-in {
+  animation-duration: 200ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fade-in-0 {
+  animation-name: fade-in;
+}
+.slide-in-from-bottom-2 {
+  animation-name: slide-in-from-bottom, fade-in;
+}
+.duration-200 {
+  animation-duration: 200ms;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   SerpFeatureCard — BEM 类（在 GaokaoSerpContainer 内联模式）
+   ══════════════════════════════════════════════════════════════ */
+
+/* Overlay 模式：整屏遮罩（在 UniWikiPage / SerpCardStack 中使用） */
+.serp-card-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  padding: 24px 16px;
+  overflow-y: auto;
+  animation: fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.serp-card-closing {
+  animation: fade-out 0.25s cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes fade-out {
+  to { opacity: 0; transform: translateY(8px); }
+}
+
+.serp-card-stacked {
+  opacity: 0.6;
+  pointer-events: none;
+  transform: scale(0.97) translateY(-8px);
+}
+
+/* 卡片主体（在 overlay 内或作为 inline 子组件时） */
+.serp-card-overlay .serp-card-content,
+.serp-card-content {
+  width: 100%;
+  max-width: 860px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 120, 212, 0.08);
+  overflow: hidden;
+  animation: slide-in-from-bottom 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 顶部操作栏（关闭/返回） */
+.serp-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.serp-card__actions .spacer {
+  flex: 1;
+}
+
+/* 图标按钮 */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111;
+}
+
+/* Header 区 */
+.serp-card__header {
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.serp-card__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.25;
+  margin: 0 0 10px 0;
+}
+
+.serp-card__subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Tab 栏 */
+.serp-card__tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.serp-card__tabs::-webkit-scrollbar { display: none; }
+
+.serp-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  position: relative;
+  bottom: -1px;
+}
+
+.serp-tab:hover {
+  color: #0078D4;
+  background: rgba(0, 120, 212, 0.04);
+}
+
+.serp-tab--active {
+  color: #0078D4;
+  border-bottom-color: #0078D4;
+  font-weight: 600;
+}
+
+/* 内容滚动区 */
+.serp-card__body {
+  overflow-y: auto;
+  max-height: min(70vh, 620px);
+}
+
+/* Tab 内容面板 */
+.detail-tab-pane {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 统计卡片行 */
+.stat-card-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  flex: 1;
+  min-width: 100px;
+  padding: 14px 16px;
+  background: rgba(0, 120, 212, 0.04);
+  border: 1px solid rgba(0, 120, 212, 0.1);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.stat-card__value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0078D4;
+  line-height: 1.2;
+}
+
+.stat-card__label {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* 详情 Section */
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-section__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+.detail-section__text {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+}
+
+.detail-section__intro {
+  font-size: 13px;
+  color: #555;
+  margin: 0;
+}
+
+/* Chip 标签 */
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: default;
+  border: 1px solid transparent;
+}
+
+.chip--primary {
+  background: rgba(0, 120, 212, 0.1);
+  color: #0078D4;
+  border-color: rgba(0, 120, 212, 0.2);
+}
+
+.chip--accent {
+  background: rgba(0, 120, 212, 0.9);
+  color: #fff;
+}
+
+.chip--accent-light {
+  background: rgba(0, 120, 212, 0.08);
+  color: #005a9e;
+  border-color: rgba(0, 120, 212, 0.15);
+}
+
+.chip--secondary {
+  background: rgba(0, 0, 0, 0.06);
+  color: #444;
+}
+
+.chip--light {
+  background: #f4f4f6;
+  color: #555;
+  border-color: rgba(0,0,0,0.08);
+}
+
+/* 数据表格 */
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.detail-table th {
+  padding: 8px 12px;
+  background: #f8f9fb;
+  color: #555;
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  font-size: 12px;
+}
+
+.detail-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+  color: #333;
+}
+
+.detail-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* 院校列表（SerpMajorCard 内） */
+.school-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.school-list-item {
+  padding: 12px 14px;
+  background: #fafafa;
+  border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.school-list-item:hover {
+  background: rgba(0, 120, 212, 0.03);
+  border-color: rgba(0, 120, 212, 0.2);
+}
+
+.school-list-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.school-list-item__header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+
+.school-list-item__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #666;
+}
+
+.school-list-item__meta .separator {
+  color: #ccc;
+}
+
+/* 专业列表（SerpSchoolCard 内） */
+.major-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.major-list-item {
+  padding: 12px 14px;
+  background: #fafafa;
+  border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.major-list-item:hover {
+  background: rgba(0, 120, 212, 0.03);
+  border-color: rgba(0, 120, 212, 0.2);
+}
+
+.major-list-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.major-list-item__header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111;
+}
+
+.major-list-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #666;
+}
+
+/* 空状态 */
+.detail-panel__empty {
+  padding: 32px 0;
+  text-align: center;
+  color: #999;
+  font-size: 13px;
+}
+
+/* 通用按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  text-decoration: none;
+}
+
+.btn-secondary {
+  background: rgba(0, 0, 0, 0.05);
+  color: #333;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 120, 212, 0.06);
+  color: #0078D4;
+  border-color: rgba(0, 120, 212, 0.25);
+}
+
+/* 信息网格（专业概况页） */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #f8f9fb;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+.info-item__label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
+}
+
+.info-item__value {
+  font-size: 13px;
+  color: #222;
+  font-weight: 600;
+}
+
+/* SerpCardStack 容器 */
+.serp-stack-container {
+  position: relative;
+}
+
+/* ── 一分一段页面在 SERP 容器内的 shell 适配 ── */
+.score-rank-serp-shell .score-rank-page,
+.score-rank-serp-shell .page-container {
+  padding: 0;
+}
+
+.score-rank-serp-shell .page-header {
+  padding: 0 0 16px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+  margin-bottom: 20px;
+}
+
+/* ── 智能推荐在 SERP 容器内 shell 适配 ── */
+.recommend-serp-shell {
+  /* 推荐页面内容直接渲染，无额外 padding */
+}
