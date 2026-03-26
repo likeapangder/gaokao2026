@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { deepSchools, deepMajors } from '../data/deepMockData.js'
 import SerpFeatureCard from './SerpFeatureCard.jsx'
+import AddToSheetButton from './AddToSheetButton.jsx'
 
 const CHART_COLORS = ['#0078D4', '#00BCF2', '#00B7C3', '#8661C5', '#5C2D91']
 
@@ -182,6 +183,16 @@ export default function SerpMajorCard({
                   <div className="school-list-item__header">
                     <h4>{school.name}</h4>
                     <span className="chip chip--light">{school.type}</span>
+                    <AddToSheetButton
+                      universityId={school.id}
+                      universityName={school.name}
+                      majorId={major.id}
+                      majorName={major.name}
+                      province={school.province}
+                      type={school.type}
+                      category="match"
+                      size="xs"
+                    />
                   </div>
                   <div className="school-list-item__meta">
                     <MapPin size={14} strokeWidth={1.5} />

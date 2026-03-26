@@ -24,6 +24,18 @@ import {
 } from 'recharts'
 import { deepSchools, deepMajors } from '../data/deepMockData.js'
 import SerpFeatureCard from './SerpFeatureCard.jsx'
+import AddToSheetButton from './AddToSheetButton.jsx'
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts'
+import { deepSchools, deepMajors } from '../data/deepMockData.js'
+import SerpFeatureCard from './SerpFeatureCard.jsx'
 
 const CHART_COLORS = ['#0078D4', '#00BCF2', '#00B7C3', '#8661C5', '#5C2D91']
 
@@ -229,6 +241,16 @@ export default function SerpSchoolCard({
                   <div className="major-list-item__header">
                     <h4>{major.name}</h4>
                     <span className="chip chip--light">{major.category}</span>
+                    <AddToSheetButton
+                      universityId={school.id}
+                      universityName={school.name}
+                      majorId={major.id}
+                      majorName={major.name}
+                      province={school.province}
+                      type={school.type}
+                      category="match"
+                      size="xs"
+                    />
                   </div>
                   <div className="major-list-item__meta">
                     <span>选科：{formatSubjectReq(major.subject_requirement)}</span>
@@ -303,7 +325,7 @@ export default function SerpSchoolCard({
                   <h3 className="detail-section__title">{year} 年招生计划</h3>
                   <table className="detail-table">
                     <thead>
-                      <tr><th>省份</th><th>专业组</th><th>计划人数</th></tr>
+                      <tr><th>省份</th><th>专业组</th><th>计划人数</th><th></th></tr>
                     </thead>
                     <tbody>
                       {plans.map((plan, idx) => (
@@ -311,6 +333,18 @@ export default function SerpSchoolCard({
                           <td>{plan.province}</td>
                           <td>{plan.majorGroup}</td>
                           <td>{plan.count} 人</td>
+                          <td>
+                            <AddToSheetButton
+                              universityId={school.id}
+                              universityName={school.name}
+                              majorId={`group-${plan.majorGroup}`}
+                              majorName={plan.majorGroup}
+                              province={school.province}
+                              type={school.type}
+                              category="match"
+                              size="xs"
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>

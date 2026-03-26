@@ -20,6 +20,8 @@ const defaultState = {
   rank: null,           // 派生位次（由 scoreToRank 计算）
   total: null,          // 全省参考人数
   volunteers: [],       // [{ id, university, major, category, order }]
+  volunteerSheet: [],   // "购物车" — 用户手动加入的志愿条目（max 96）
+                        // [{ id, universityId, universityName, majorId, majorName, province, type, category }]
 }
 
 /** 从 localStorage 恢复状态（失败时返回 defaultState） */
@@ -79,6 +81,27 @@ function reducer(state, action) {
       // payload: 新顺序的 volunteers 数组
       return { ...state, volunteers: action.payload }
     }
+    case 'ADD_TO_SHEET': {
+      const MAX = 96
+      const item = action.payload
+      // 已满拦截
+      if (state.volunteerSheet.length >= MAX) return state
+      // 防重（同院校+专业）
+      const dup = state.volunteerSheet.some(
+        (v) => v.universityId === item.universityId && v.majorId === item.majorId
+      )
+      if (dup) return state
+      return {
+        ...state,
+        volunteerSheet: [...state.volunteerSheet, { ...item, addedAt: Date.now() }],
+      }
+    }
+    case 'REMOVE_FROM_SHEET': {
+      return {
+        ...state,
+        volunteerSheet: state.volunteerSheet.filter((v) => v.id !== action.payload),
+      }
+    }
     case 'RESET': {
       return defaultState
     }
@@ -134,6 +157,21 @@ export function CandidateProvider({ children }) {
     dispatch({ type: 'REORDER_VOLUNTEERS', payload: newList })
   }, [])
 
+  /**
+   * addToSheet(item) — 加入志愿购物车（reducer 内做去重 + 96 上限拦截）
+   * item shape: { id, universityId, universityName, majorId, majorName, province, type, category }
+   */
+  const addToSheet = useCallback((item) => {
+    dispatch({ type: 'ADD_TO_SHEET', payload: item })
+  }, [])
+
+  /**
+   * removeFromSheet(id) — 从购物车移除
+   */
+  const removeFromSheet = useCallback((id) => {
+    dispatch({ type: 'REMOVE_FROM_SHEET', payload: id })
+  }, [])
+
   const reset = useCallback(() => {
     dispatch({ type: 'RESET' })
     localStorage.removeItem(STORAGE_KEY)
@@ -155,6 +193,8 @@ export function CandidateProvider({ children }) {
     addVolunteer,
     removeVolunteer,
     reorderVolunteers,
+    addToSheet,
+    removeFromSheet,
     reset,
   }
 
